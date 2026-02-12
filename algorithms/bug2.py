@@ -9,146 +9,155 @@ class Bug2:
         self.rows = len(grid)
         self.cols = len(grid[0])
 
-        self.start = (start[0] + 0.5, start[1] + 0.5)
-        self.goal = (goal[0] + 0.5, goal[1] + 0.5)
+        self.start = start
+        self.goal = goal
 
-        self.pos = list(self.start)
-        self.path = [tuple(self.pos)]
+        self.pos = start
+        self.path = [self.pos]
 
         self.mode = "GOAL"
         self.hit_point = None
 
-        self.step_size = 0.08
+        # Step 1: Make m-line
+        self.mline = self.make_mline(start, goal)
 
-        # m-line direction
-        dx = self.goal[0] - self.start[0]
-        dy = self.goal[1] - self.start[1]
-        mag = math.hypot(dx, dy)
-        self.mdir = (dx / mag, dy / mag)
+        self.path = [self.pos]
 
-        # 🔥 precompute m-line samples for visualization
-        self.mline = []
-        p = list(self.start)
 
-        while math.hypot(p[0] - self.goal[0], p[1] - self.goal[1]) > 0.1:
-            self.mline.append(tuple(p))
-            p[0] += self.mdir[0] * 0.1
-            p[1] += self.mdir[1] * 0.1
+    # -------------------------------------------------
+    # Step 1: Create m-line using Bresenham
+    # -------------------------------------------------
+    def make_mline(self, start, goal):
 
-        self.mline.append(self.goal)
-        self.wall_dir = None
+        mline = []
 
-    # ---------- collision ----------
+        x1, y1 = start
+        x2, y2 = goal
 
+        dx = abs(x2 - x1)
+        dy = abs(y2 - y1)
+
+        sx = 1 if x1 < x2 else -1
+        sy = 1 if y1 < y2 else -1
+
+        err = dx - dy
+
+        while True:
+            mline.append((x1, y1))
+            if (x1, y1) == (x2, y2):
+                break
+
+            e2 = 2 * err
+            if e2 > -dy:
+                err -= dy
+                x1 += sx
+            if e2 < dx:
+                err += dx
+                y1 += sy
+
+        return mline
+
+
+    # -------------------------------------------------
     def is_free(self, p):
-        r = int(p[0])
-        c = int(p[1])
-
+        r, c = p
         if r < 0 or c < 0 or r >= self.rows or c >= self.cols:
             return False
-
         return self.grid[r][c] == 0
 
-    # ---------- distance ----------
+    # -------------------------------------------------
+    # Step 2: Follow m-line
+    # -------------------------------------------------
+    def follow_mline(self):
 
-    def dist(self, p):
-        return math.hypot(self.goal[0] - p[0], self.goal[1] - p[1])
+        idx = self.mline.index(self.pos)
 
-    # ---------- m-line check ----------
-
-    def on_mline(self, p):
-        x1, y1 = self.start
-        x2, y2 = self.goal
-        x, y = p
-        return abs((y2 - y1) * (x - x1) - (x2 - x1) * (y - y1)) < 0.2
-
-    # ---------- goal motion ----------
-
-    def step_goal(self):
-
-        nxt = [
-            self.pos[0] + self.mdir[0] * self.step_size,
-            self.pos[1] + self.mdir[1] * self.step_size,
-        ]
-
-        if self.is_free(nxt):
-            return nxt
-
-        return None
-
-    # ---------- boundary follow ----------
-
-    def follow_wall(self):
-
-
-        eps = 0.05
-        gx = 0
-        gy = 0
-
-        # estimate obstacle normal
-        for dx in [-eps, eps]:
-            for dy in [-eps, eps]:
-                test = (self.pos[0] + dx, self.pos[1] + dy)
-                if not self.is_free(test):
-                    gx += dx
-                    gy += dy
-
-        mag = math.hypot(gx, gy)
-
-        if mag == 0:
+        if idx + 1 >= len(self.mline):
             return self.pos
 
-        nx = gx / mag
-        ny = gy / mag
+        next_cell = self.mline[idx + 1]
 
-        # tangent candidates
-        t1 = (-ny, nx)
-        t2 = (ny, -nx)
+        if self.is_free(next_cell):
+            return next_cell
+        else:
+            # Step 3: Hit obstacle
+            self.mode = "BOUNDARY"
+            self.hit_point = self.pos
+            return self.move_around_obstacle()
 
-        # lock direction if first time
-        if self.wall_dir is None:
-            self.wall_dir = t1
+    
+    # ------------------------------------------------- 
+    # Step 3: Proper Boundary Following (Right-Hand Rule) 
+    # ------------------------------------------------- 
+    def has_obstacle_neighbor(self, pos): 
+        r, c = pos 
+     
+        neighbors = [ 
+            (r+1, c), 
+            (r-1, c), 
+            (r, c+1), 
+            (r, c-1),
+            (r+1, c+1), 
+            (r-1, c-1), 
+            (r+1, c-1), 
+            (r-1, c+1) 
+        ] 
+     
+        for n in neighbors: 
+            if not self.is_free(n): 
+                return True 
+     
+        return False 
+    
+    def has_moved_here(self, pos): 
+        for n in self.path:
+            if n == pos:
+                return True 
+     
+        return False 
+    
+    def move_around_obstacle(self): 
+     
+        r, c = self.pos 
+     
+        neighbors = [ 
+            (r+1, c), 
+            (r-1, c), 
+            (r, c+1), 
+            (r, c-1) 
+        ] 
+     
+     
+        for d in neighbors: 
+            new_pos = (d[0], d[1]) 
+            if self.is_free(new_pos) and self.has_obstacle_neighbor(new_pos) and not self.has_moved_here(new_pos): 
+                self.dir = d 
+                self.path.append(new_pos)
+                return new_pos
+            
+        self.path.append(self.pos)
+        return self.pos 
+    
+    
 
-        # try preferred direction first
-        tx, ty = self.wall_dir
-
-        nxt = [self.pos[0] + tx * self.step_size, self.pos[1] + ty * self.step_size]
-
-        if self.is_free(nxt):
-            return nxt
-
-        # fallback to opposite tangent
-        tx, ty = (-tx, -ty)
-        self.wall_dir = (tx, ty)
-
-        nxt = [self.pos[0] + tx * self.step_size, self.pos[1] + ty * self.step_size]
-
-        return nxt
-
-    # ---------- main step ----------
-
+    # -------------------------------------------------
+    # Step 4 & 5
+    # -------------------------------------------------
     def step(self):
 
-        if self.dist(self.pos) < 0.2:
-            return tuple(self.pos), True
+        if self.pos == self.goal:
+            return self.pos, True
 
         if self.mode == "GOAL":
+            self.pos = self.follow_mline()
 
-            nxt = self.step_goal()
+        elif self.mode == "BOUNDARY":
+            self.pos = self.move_around_obstacle()
 
-            if nxt is None:
-                self.mode = "BOUNDARY"
-                self.hit_point = tuple(self.pos)
-                nxt = self.follow_wall()
+            if self.pos in self.mline:
+                if self.mline.index(self.pos) > self.mline.index(self.hit_point):
+                    self.mode = "GOAL"
 
-        else:
+        self.path.append(self.pos)
+        return self.pos, False
 
-            nxt = self.follow_wall()
-
-            if self.on_mline(nxt) and self.dist(nxt) < self.dist(self.hit_point):
-                self.mode = "GOAL"
-
-        self.pos = nxt
-        self.path.append(tuple(self.pos))
-
-        return tuple(self.pos), False

@@ -34,7 +34,6 @@ class MapViewer:
         self.path = []
         self.robot = self.start
 
-        # continuous position
         self.robot_pos = [self.start[0]+0.5, self.start[1]+0.5]
         self.target_pos = self.robot_pos[:]
 
@@ -93,33 +92,13 @@ class MapViewer:
                 from ui_pygame.screens.home_screen import HomeScreen
                 self.next_screen = HomeScreen(self.screen)
 
-            self.handle_slider(event.pos)
 
         if event.type == pygame.KEYDOWN:
 
             if event.key == pygame.K_SPACE:
                 self.run_bug2()
 
-    # ---------- slider ----------
-
-    def handle_slider(self, pos):
-        if not self.path:
-            return
-
-        sx = self.screen.get_width() - SIDE_PANEL + 20
-        sy = 400
-        sw = 160
-
-        x, y = pos
-        if sx <= x <= sx + sw and sy <= y <= sy + 20:
-            ratio = (x - sx) / sw
-            idx = int(ratio * (len(self.path) - 1))
-            self.robot = self.path[idx]
-            self.robot_pos = [self.robot[0]+0.5, self.robot[1]+0.5]
-            self.playing = False
-
-    # ---------- update ----------
-
+    # -------------------------------------------------
     def update(self, dt):
 
         if self.next_screen:
@@ -143,21 +122,17 @@ class MapViewer:
                 if done:
                     self.playing = False
 
-        # smooth interpolation
-        speed = 0.15
+        # smooth animation
+        speed = 0.2
         self.robot_pos[0] += (self.target_pos[0] - self.robot_pos[0]) * speed
         self.robot_pos[1] += (self.target_pos[1] - self.robot_pos[1]) * speed
 
-    # ---------- draw m-line ----------
-
+    # -------------------------------------------------
     def draw_mline(self):
-
-        if not self.planner:
-            return
-
+        
         for p in self.planner.mline:
             x, y = self.plane_to_pixel(*p)
-            pygame.draw.circle(self.screen, (0,200,255), (x,y), 2)
+            pygame.draw.circle(self.screen, MLINE_COLOR, (x, y), 3)
 
 # ---------- draw world ----------
 
@@ -175,22 +150,30 @@ class MapViewer:
 
                 pygame.draw.rect(self.screen, GRID_LINE, rect, 1)
 
-        # path
+        # Draw path
         for p in self.path:
             x, y = self.cell_to_pixel(*p)
-            pygame.draw.circle(self.screen, PATH_COLOR, (x+CELL//2, y+CELL//2), 4)
+            pygame.draw.circle(self.screen, PATH_COLOR,
+                               (x+CELL//2, y+CELL//2), 4)
 
-        # robot (continuous)
+        # Draw hit point
+        if self.planner and self.planner.hit_point:
+            hx, hy = self.cell_to_pixel(*self.planner.hit_point)
+            pygame.draw.circle(self.screen, HIT_COLOR,
+                               (hx+CELL//2, hy+CELL//2), 6)
+
+        # Draw robot
         rx, ry = self.plane_to_pixel(*self.robot_pos)
-        
         pygame.draw.circle(self.screen, ROBOT_COLOR, (rx, ry), 10)
-        # start & goal markers
+
+        # Start & Goal
         sx, sy = self.cell_to_pixel(*self.start)
         gx, gy = self.cell_to_pixel(*self.goal)
 
-        pygame.draw.circle(self.screen, START_COLOR, (sx+CELL//2, sy+CELL//2), 10)
-        pygame.draw.circle(self.screen, GOAL_COLOR, (gx+CELL//2, gy+CELL//2), 10)
-
+        pygame.draw.circle(self.screen, START_COLOR,
+                           (sx+CELL//2, sy+CELL//2), 10)
+        pygame.draw.circle(self.screen, GOAL_COLOR,
+                           (gx+CELL//2, gy+CELL//2), 10)
 
     # ---------- back button ----------
 
@@ -208,17 +191,24 @@ class MapViewer:
 
     def draw_panel(self):
         w = self.screen.get_width()
-        panel = pygame.Rect(w - SIDE_PANEL, 0, SIDE_PANEL, self.screen.get_height())
+        panel = pygame.Rect(w - SIDE_PANEL, 0, SIDE_PANEL,
+                            self.screen.get_height())
         pygame.draw.rect(self.screen, (40, 40, 40), panel)
 
         title = self.font.render("Algorithm: Bug2", True, (255,255,255))
         self.screen.blit(title, (w - SIDE_PANEL + 20, 30))
 
-    # ---------- draw ----------
+        if self.planner:
+            mode = self.font.render(f"Mode: {self.planner.mode}",
+                                    True, (255,255,255))
+            self.screen.blit(mode, (w - SIDE_PANEL + 20, 70))
 
+    # -------------------------------------------------
     def draw(self):
         self.screen.fill(BG)
         self.draw_grid()
         self.draw_panel()
         self.draw_back_button()
-        self.draw_mline()
+
+        if self.planner:
+            self.draw_mline()
