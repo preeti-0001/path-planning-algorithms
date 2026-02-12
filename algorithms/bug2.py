@@ -22,6 +22,7 @@ class Bug2:
         self.mline = self.make_mline(start, goal)
 
         self.path = [self.pos]
+        self.memory_size = 4
 
 
     # -------------------------------------------------
@@ -84,8 +85,6 @@ class Bug2:
             self.mode = "BOUNDARY"
             self.hit_point = self.pos
             return self.move_around_obstacle()
-
-    
     # ------------------------------------------------- 
     # Step 3: Proper Boundary Following (Right-Hand Rule) 
     # ------------------------------------------------- 
@@ -104,7 +103,7 @@ class Bug2:
         ] 
      
         for n in neighbors: 
-            if not self.is_free(n): 
+            if 0 <= n[0] < self.rows and 0 <= n[1] < self.cols and not self.is_free(n): 
                 return True 
      
         return False 
@@ -126,16 +125,15 @@ class Bug2:
             (r, c+1), 
             (r, c-1) 
         ] 
-     
-     
         for d in neighbors: 
             new_pos = (d[0], d[1]) 
             if self.is_free(new_pos) and self.has_obstacle_neighbor(new_pos) and not self.has_moved_here(new_pos): 
                 self.dir = d 
-                self.path.append(new_pos)
+                self.path.append(self.pos)
+                if len(self.path) > self.memory_size:
+                    self.path.pop(0)
                 return new_pos
             
-        self.path.append(self.pos)
         return self.pos 
     
     
