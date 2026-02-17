@@ -2,6 +2,9 @@ import pygame
 import json
 import os
 from algorithms.bug2 import Bug2
+from algorithms.bug3_research import Bug3
+from ui_pygame.widgets.side_pannel import SidePanel
+
 
 FREE_COLOR = (35, 35, 35)
 OBS_COLOR = (180, 60, 60)
@@ -19,7 +22,6 @@ BG = (15, 15, 15)
 
 CELL = 30
 MARGIN = 40
-SIDE_PANEL = 220
 
 
 class MapViewer:
@@ -43,6 +45,9 @@ class MapViewer:
 
         self.back_rect = pygame.Rect(10, 10, 100, 35)
         self.next_screen = None
+        self.side_panel = SidePanel(screen, algorithms=["Bug2", "Bug3"])
+
+
 
     # ---------- load map ----------
 
@@ -70,22 +75,34 @@ class MapViewer:
         return int(x), int(y)
 
     # ---------- planner ----------
-
-    def run_bug2(self):
-        self.planner = Bug2(self.grid, self.start, self.goal)
-        self.path = [self.start]
-        self.robot = self.start
-
-        self.robot_pos = [self.start[0]+0.5, self.start[1]+0.5]
-        self.target_pos = self.robot_pos[:]
-
-        self.playing = True
-        self.timer = 0
+    def run_selected_algorithm(self): 
+     
+        algo = self.side_panel.selected_algorithm 
+     
+        if algo == "Bug2": 
+            self.planner = Bug2(self.grid, self.start, self.goal) 
+     
+        elif algo == "Bug3": 
+            self.planner = Bug3(self.grid, self.start, self.goal) 
+     
+        self.path = [self.start] 
+        self.robot = self.start 
+     
+        self.robot_pos = [self.start[0]+0.5, self.start[1]+0.5] 
+        self.target_pos = self.robot_pos[:] 
+     
+        self.playing = True 
+        self.timer = 0 
+    
 
     # ---------- events ----------
 
     def handle_event(self, event):
+        selected = self.side_panel.handle_event(event)
 
+        if selected:
+            self.playing = False
+            self.planner = None
         if event.type == pygame.MOUSEBUTTONDOWN:
 
             if self.back_rect.collidepoint(event.pos):
@@ -94,9 +111,8 @@ class MapViewer:
 
 
         if event.type == pygame.KEYDOWN:
-
             if event.key == pygame.K_SPACE:
-                self.run_bug2()
+                self.run_selected_algorithm()
 
     # -------------------------------------------------
     def update(self, dt):
@@ -187,28 +203,13 @@ class MapViewer:
         rect = label.get_rect(center=self.back_rect.center)
         self.screen.blit(label, rect)
 
-    # ---------- panel ----------
-
-    def draw_panel(self):
-        w = self.screen.get_width()
-        panel = pygame.Rect(w - SIDE_PANEL, 0, SIDE_PANEL,
-                            self.screen.get_height())
-        pygame.draw.rect(self.screen, (40, 40, 40), panel)
-
-        title = self.font.render("Algorithm: Bug2", True, (255,255,255))
-        self.screen.blit(title, (w - SIDE_PANEL + 20, 30))
-
-        if self.planner:
-            mode = self.font.render(f"Mode: {self.planner.mode}",
-                                    True, (255,255,255))
-            self.screen.blit(mode, (w - SIDE_PANEL + 20, 70))
-
     # -------------------------------------------------
     def draw(self):
         self.screen.fill(BG)
         self.draw_grid()
-        self.draw_panel()
         self.draw_back_button()
+        self.side_panel.draw(self.planner)
 
-        if self.planner:
+
+        if self.planner and self.side_panel.selected_algorithm == "Bug2":
             self.draw_mline()
